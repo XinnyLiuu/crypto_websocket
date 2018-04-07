@@ -107,4 +107,5 @@ app.use('/coinbase', () => {
 		// TODO: Save into mysql database
 	});
 
+// TODO: Translate above in Python. From each route, save data from apis into mysql database, then create a websocket that returns the data that are constantly being stored into the db.
 });
