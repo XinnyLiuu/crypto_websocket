@@ -94,11 +94,11 @@ app.use('/coinbase', () => {
 
 			changes.forEach((data) => {
 				update = {
-						exchange: 'Coinbase',
-						type: 'Updates',
-						transaction: data[0],
-						price: data[1],
-						amount: data[2]
+					exchange: 'Coinbase',
+					type: 'Updates',
+					transaction: data[0],
+					price: data[1],
+					amount: data[2]
 					}
 			});
 			console.log(update);
