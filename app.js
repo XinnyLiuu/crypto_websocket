@@ -6,12 +6,11 @@ const app = express();
 
 // Express server
 const server = app.listen(8000, () => {
-	console.log("Bitfinex is listening at /bitfinex");
-	console.log("Coinbase is listening at /coinbase");
+	console.log("Consolidated order book from Bitfinex and Coinbase at /order_book");
 });
 
 // MySql Connection
-let sql;
+let sql; // variable for all sql queries
 
 const db = mysql.createConnection({
 	host: 'localhost',
@@ -29,7 +28,7 @@ db.connect((err, result) => {
 });
 
 // Create db
-app.get('/db',  (req, res) => {
+app.get('/create_db',  (req, res) => {
 	sql = 'CREATE DATABASE ws_data';
 	db.query(sql, (err, result) => {
 		if(err) {
@@ -43,7 +42,7 @@ app.get('/db',  (req, res) => {
 
 // Create table
 app.get('/create_table', (req, res) => {
-	sql = 'CREATE TABLE order_book (exchange VARCHAR (225), type VARCHAR (255), transaction VARCHAR (255), price INT (255), count INT (255), amount INT (225))';
+	sql = 'CREATE TABLE order_book (exchange VARCHAR (225), type VARCHAR (255), transaction VARCHAR (255), price INT (255), amount INT (225))';
 	db.query(sql, (err, result) => {
 		if(err) {
 			console.log(err);
@@ -65,13 +64,18 @@ let transaction; // Bid or Ask
 let update; // object that will be parsed to be added into db
 let changes; // Coinbase's updates are referred to as changes on their api
 
-// bitfinex
-app.use('/bitfinex', () => {
+app.use('/order_book', () => {
 	const bitfinex = 'wss://api.bitfinex.com/ws';
-	ws = new socket(bitfinex);
+	const coinbase = 'wss://ws-feed.gdax.com';
 
-	ws.on('open', () => {
-		ws.send(JSON.stringify({
+	a = new socket(bitfinex);
+	b = new socket(coinbase);
+
+	/**
+	 	Bitfinex Websocket
+	**/
+	a.on('open', () => {
+		a.send(JSON.stringify({
 			'event': 'subscribe',
 			"channel":"book",
 			'pair': 'BTCUSD',
@@ -79,7 +83,7 @@ app.use('/bitfinex', () => {
 		}));
 	});
 
-	ws.on('message', (msg) => {
+	a.on('message', (msg) => {
 		response = JSON.parse(msg);
 
 		// check if 'bid' or 'ask'
@@ -95,7 +99,6 @@ app.use('/bitfinex', () => {
 			type: 'Updates',
 			transaction: transaction,
 			price: response[1],
-			count: response[2],
 			amount: response[3],
 		};
 
@@ -109,34 +112,27 @@ app.use('/bitfinex', () => {
 		};
 
 		// add updates to mysql
-		sql = 'INSERT INTO order_book (exchange, type, transaction, price, count, amount) VALUES ?';
+		sql = 'INSERT INTO order_book (exchange, type, transaction, price, amount) VALUES ?';
 		updateArray = [
 			[
 				update.exchange,
 				update.type,
 				update.transaction,
 				update.price,
-				update.count,
 				update.amount
 			]
 		];
 		db.query(sql, [updateArray], (err, result) => {
-			if(err) {
-				console.log(err);
-			} else {
+			if(err) console.log(err);
 				console.log(result);
-			};
 		});
 	});
-});
 
-// coinbase
-app.use('/coinbase', () => {
-	const coinbase = 'wss://ws-feed.gdax.com';
-	ws = new socket(coinbase);
-
-	ws.on('open', () => {
-		ws.send(JSON.stringify({
+	/**
+	 	Coinbase Websocket
+	**/
+	b.on('open', () => {
+		b.send(JSON.stringify({
 			'type': 'subscribe',
 			'product_ids': [
 				'BTC-USD'
@@ -147,7 +143,7 @@ app.use('/coinbase', () => {
 		}));
 	});
 
-	ws.on('message', (msg) => {
+	b.on('message', (msg) => {
 		response = JSON.parse(msg);
 
 		// Updates
@@ -181,6 +177,6 @@ app.use('/coinbase', () => {
 			});
 		};
 	});
+});
 
 // TODO: Translate above in Python. From each route, save data from apis into mysql database, then create a websocket that returns the data that are constantly being stored into the db.
-});
