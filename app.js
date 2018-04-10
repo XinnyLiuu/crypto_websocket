@@ -1,11 +1,57 @@
 const express = require('express');
 const socket = require('ws');
+const mysql = require('mysql');
 
 const app = express();
 
+// Express server
 const server = app.listen(8000, () => {
 	console.log("Bitfinex is listening at /bitfinex");
 	console.log("Coinbase is listening at /coinbase");
+});
+
+// MySql Connection
+let sql;
+
+const db = mysql.createConnection({
+	host: 'localhost',
+	user: 'root',
+	password: '12345',
+	database: 'ws_data'
+});
+
+db.connect((err, result) => {
+	if(err) {
+		console.log(err);
+	} else {
+		console.log('Connected to Database');
+	}
+});
+
+// Create db
+app.get('/db',  (req, res) => {
+	sql = 'CREATE DATABASE ws_data';
+	db.query(sql, (err, result) => {
+		if(err) {
+			console.log(err);
+		} else {
+			console.log(result)
+			res.send('Database created');
+		}
+	});
+});
+
+// Create table
+app.get('/create_table', (req, res) => {
+	sql = 'CREATE TABLE order_book (exchange VARCHAR (225), type VARCHAR (255), transaction VARCHAR (255), price INT (255), count INT (255), amount INT (225))';
+	db.query(sql, (err, result) => {
+		if(err) {
+			console.log(err);
+		} else {
+			console.log(result);
+			res.send('Table created');
+		}
+	});
 });
 
 // Global variables
@@ -18,7 +64,6 @@ let amount;
 let transaction; // Bid or Ask
 let update; // object that will be parsed to be added into db
 let changes; // Coinbase's updates are referred to as changes on their api
-
 
 // bitfinex
 app.use('/bitfinex', () => {
@@ -48,10 +93,10 @@ app.use('/bitfinex', () => {
 		update = {
 			exchange: 'Bitfinex',
 			type: 'Updates',
+			transaction: transaction,
 			price: response[1],
 			count: response[2],
 			amount: response[3],
-			transaction: transaction
 		};
 
 		// check if snapshot or update
@@ -63,8 +108,25 @@ app.use('/bitfinex', () => {
 			}
 		};
 
-		console.log(update);
-		// TODO: Save the object into mysql
+		// add updates to mysql
+		sql = 'INSERT INTO order_book (exchange, type, transaction, price, count, amount) VALUES ?';
+		updateArray = [
+			[
+				update.exchange,
+				update.type,
+				update.transaction,
+				update.price,
+				update.count,
+				update.amount
+			]
+		];
+		db.query(sql, [updateArray], (err, result) => {
+			if(err) {
+				console.log(err);
+			} else {
+				console.log(result);
+			};
+		});
 	});
 });
 
@@ -99,12 +161,25 @@ app.use('/coinbase', () => {
 					transaction: data[0],
 					price: data[1],
 					amount: data[2]
-					}
+				};
 			});
-			console.log(update);
-		};
 
-		// TODO: Save into mysql database
+			// add updates to mysql
+			sql = 'INSERT INTO order_book (exchange, type, transaction, price, amount) VALUES ?';
+			updateArray = [
+				[
+					update.exchange,
+					update.type,
+					update.transaction,
+					update.price,
+					update.amount
+				]
+			];
+			db.query(sql, [updateArray], (err, result) => {
+				if(err) console.log(err);
+					console.log(result);
+			});
+		};
 	});
 
 // TODO: Translate above in Python. From each route, save data from apis into mysql database, then create a websocket that returns the data that are constantly being stored into the db.

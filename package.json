@@ -14,6 +14,7 @@
     "socket.io": "^2.1.0"
   },
   "dependencies": {
+    "mysql": "^2.15.0",
     "prompt": "^1.0.0",
     "ws": "^5.1.1"
   }
